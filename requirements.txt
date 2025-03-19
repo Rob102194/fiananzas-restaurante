@@ -1,0 +1,8 @@
+streamlit
+pandas
+plotly
+python-dotenv
+streamlit-authenticator
+python-multipart
+psycopg2-binary
+sqlalchemy
