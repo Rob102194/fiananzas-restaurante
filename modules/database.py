@@ -19,7 +19,7 @@ class DatabaseManager:
         """Crear todas las tablas necesarias"""
         
         tables =  {
-            "gastos": """
+            "compras": """
                 CREATE TABLE IF NOT EXISTS gastos (
                     id SERIAL PRIMARY KEY,
                     fecha DATE NOT NULL,
