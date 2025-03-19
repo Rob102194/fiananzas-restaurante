@@ -1,8 +1,9 @@
-streamlit
-pandas
-plotly
-python-dotenv
-streamlit-authenticator
-python-multipart
-psycopg2-binary
-sqlalchemy
+streamlit == 1.43.2
+pandas == 2.2.3
+plotly == 6.0.1
+python-dotenv == 1.0.1
+streamlit-authenticator == 0.4.2
+python-multipart == 0.0.20
+psycopg2-binary == 2.9.10
+sqlalchemy == 2.0.39
+supabase == 2.13.0
