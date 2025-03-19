@@ -5,14 +5,14 @@ from typing import Dict, List, Optional
 
 class DatabaseManager:
     def __init__(self):
-        # 1. Obtener credenciales de Streamlit secrets
-        self.url = st.secrets["SUPABASE_URL"].strip()  # Elimina espacios
+        # Obtener credenciales de Streamlit secrets
+        self.url = st.secrets["SUPABASE_URL"].strip() 
         self.key = st.secrets["SUPABASE_KEY"].strip()
         
-        # 2. Inicializar cliente Supabase
+        # Inicializar cliente Supabase
         self.client: Client = create_client(self.url, self.key)
         
-        # 3. Crear tablas si no existen
+        # Crear tablas si no existen
         self._initialize_tables()
 
     def _initialize_tables(self):

@@ -2,8 +2,32 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 from typing import Dict, List
+from streamlit_option_menu import option_menu
 
 class InterfaceManager:
+    def __init__(self):
+        self.menu_option = None
+        self._setup_sidebar()
+    
+    def _setup_sidebar(self):
+        """Configuracion de sidebar"""
+        with st.sidebar:
+            st.image("assets/logo.png", width=120)
+            st.title("🍽️ Gestor Gastos")
+            st.markdown("---")
+            
+            # Menú con iconos
+            self.menu_option = option_menu(
+                menu_title=None,
+                options=["Registro", "Consulta", "Análisis"],
+                icons=["pencil-square", "search", "bar-chart-line"], 
+                default_index=0,
+                styles={
+                    "container": {"padding": "0!important"},
+                    "nav-link": {"font-size": "16px", "margin": "5px 0"}
+                }
+            )
+
     @staticmethod
     def input_form() -> Dict:
         with st.form("nuevo_gasto"):

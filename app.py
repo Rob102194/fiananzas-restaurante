@@ -5,7 +5,11 @@ from modules.analytics import AnalyticsEngine
 import pandas as pd
 
 # Configuración inicial
-st.set_page_config(page_title="Gestión de Gastos", layout="wide")
+st.set_page_config(
+    page_title="Gestión de Restaurante", 
+    page_icon="🍽️", 
+    layout="wide"
+)
 
 # Inicialización de módulos
 @st.cache_resource
@@ -17,16 +21,22 @@ ui = InterfaceManager()
 analytics = AnalyticsEngine()
 
 # Flujo principal
-tab1, tab2, tab3 = st.tabs(["Registro", "Consulta", "Análisis"])
+@st.cache_data
+def load_data(_db):
+    return _db.get_all_gastos()
 
-with tab1:
+# Cargar datos
+raw_data = load_data(db)
+
+if ui.menu_option == "Registro":
     new_data = ui.input_form()
     if new_data:
         db.insert_gasto(new_data)
+        st.cache_data.clear()  # Forzar recarga de datos
         st.rerun()
 
-with tab2:
-    raw_data = db.get_all_gastos()
+
+elif ui.menu_option == "Consulta":
     if raw_data:
         df = pd.DataFrame(raw_data)
         deleted_ids, edited_data = ui.edit_delete_table(df.to_dict('records'))
@@ -41,7 +51,7 @@ with tab2:
                 db.update_gasto(row['id'], row)
             st.rerun()
 
-with tab3:
+elif ui.menu_option == "Análisis":
     if raw_data:
         df = pd.DataFrame(raw_data)
         metrics = analytics.generate_metrics(df)
@@ -55,3 +65,6 @@ with tab3:
         fig1, fig2 = analytics.create_visualizations(df)
         st.plotly_chart(fig1, use_container_width=True)
         st.plotly_chart(fig2, use_container_width=True)
+
+    else:
+        st.warning("No hay datos para analizar")
