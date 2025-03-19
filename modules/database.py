@@ -1,5 +1,5 @@
 import streamlit as st
-import datetime
+from datetime import datetime as dt
 from supabase import create_client, Client
 from typing import Dict, List, Optional
 
@@ -42,10 +42,10 @@ class DatabaseManager:
     
     def get_all_gastos(self) -> List[Dict]:
         raw_data = self.client.table('gastos').select("*").execute().data
-        # Convertir datetime a string ISO
         for item in raw_data:
             if isinstance(item['fecha'], str):
-                item['fecha'] = datetime.fromisoformat(item['fecha']).date()
+                # Usar fromisoformat desde el módulo datetime
+                item['fecha'] = dt.fromisoformat(item['fecha']).date()
         return raw_data
 
     def update_gasto(self, record_id: int, updates: Dict) -> Dict:
