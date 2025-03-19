@@ -16,29 +16,74 @@ class DatabaseManager:
         self._initialize_tables()
 
     def _initialize_tables(self):
-        """Crea la estructura de la base de datos"""
-        try:
-            init_script = """
-            CREATE TABLE IF NOT EXISTS gastos (
+        """Crear todas las tablas necesarias"""
+        
+        tables =  {
+            "gastos": """
+                CREATE TABLE IF NOT EXISTS gastos (
+                    id SERIAL PRIMARY KEY,
+                    fecha DATE NOT NULL,
+                    categoria VARCHAR(50) NOT NULL,
+                    tipo VARCHAR(10) NOT NULL CHECK (tipo IN ('compra', 'gasto')),
+                    proveedor VARCHAR(100),
+                    cantidad NUMERIC(10,3) NOT NULL DEFAULT 1,
+                    unidad_medida VARCHAR(20) NOT NULL DEFAULT 'unidad',
+                    monto NUMERIC(10,2) NOT NULL,
+                    descripcion TEXT,
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            """,
+
+            "gastos": """
+                CREATE TABLE IF NOT EXISTS gastos (
+                    id SERIAL PRIMARY KEY,
+                    fecha DATE NOT NULL,
+                    proveedor VARCHAR(100),
+                    categoria VARCHAR(50) NOT NULL,
+                    monto NUMERIC(10,2) NOT NULL,
+                    descripcion TEXT,
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            """,
+
+            "ventas": """
+            CREATE TABLE IF NOT EXISTS ventas (
                 id SERIAL PRIMARY KEY,
                 fecha DATE NOT NULL,
-                categoria VARCHAR(50) NOT NULL,
-                proveedor VARCHAR(100),
-                cantidad NUMERIC(10,3) NOT NULL DEFAULT 1,
-                unidad_medida VARCHAR(20) NOT NULL DEFAULT 'unidad',
-                monto NUMERIC(10,2) NOT NULL,
-                descripcion TEXT,
+                producto VARCHAR(100) NOT NULL,
+                cantidad INT NOT NULL,
+                precio_unitario NUMERIC(10,2) NOT NULL,
+                total NUMERIC(10,2) GENERATED ALWAYS AS (cantidad * precio_unitario) STORED,
+                metodo_pago VARCHAR(50),
                 created_at TIMESTAMP DEFAULT NOW()
-            );
-            """
-            self.client.rpc('execute_sql', params={'query': init_script}).execute()
-        except Exception as e:
-            st.error(f"Error crítico en BD: {str(e)}")
-            raise
+            )
+        """
+        }
+
+        for table, script in tables.items():
+                try:
+                    self.client.rpc('execute_sql', params={'query': script}).execute()
+                except Exception as e:
+                    print(f"Error creando tabla {table}: {str(e)}")
+
 
         
-    def insert_gasto(self, data: Dict) -> Dict:
-        return self.client.table('gastos').insert(data).execute().data[0]
+    def insert_registro(self, data: Dict):
+        """Inserta en la tabla correspondiente según categoría"""
+        if data["categoria"] == "Mercancía":
+            required = ["fecha", "producto", "cantidad", "unidad_medida", "monto"]
+            table = "compras"
+        else:
+            required = ["fecha", "categoria", "monto"]
+            table = "gastos"
+        
+        if not all(key in data for key in required):
+            raise ValueError(f"Campos requeridos faltantes: {required}")
+        
+        return self.client.table(table).insert(data).execute().data[0]
+    
+    def insert_venta(self, data: Dict) -> Dict:
+        return self.client.table('ventas').insert(data).execute().data[0]
     
     def get_all_gastos(self) -> List[Dict]:
         raw_data = self.client.table('gastos').select("*").execute().data
@@ -56,3 +101,24 @@ class DatabaseManager:
     
     def delete_gasto(self, record_id: int) -> None:
         self.client.table('gastos').delete().eq('id', record_id).execute()
+
+    def edit_delete_table(self, data: List[Dict]) -> tuple:
+        # Nueva configuración de columnas
+        column_config = {
+            "tipo": st.column_config.SelectboxColumn(
+                "Tipo",
+                options=["compra", "gasto"],
+                required=True
+            ),
+            "fecha": st.column_config.DateColumn(format="YYYY-MM-DD"),
+            "monto": st.column_config.NumberColumn(format="$%.2f"),
+            "cantidad": st.column_config.NumberColumn(format="%.3f")
+        }
+        
+        edited_data = st.data_editor(
+            data,
+            column_config=column_config,
+            disabled=["id", "created_at"],
+            key="editor",
+            num_rows="dynamic"
+        )

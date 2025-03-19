@@ -17,7 +17,7 @@ def init_db():
     return DatabaseManager()
 
 db = init_db()
-ui = InterfaceManager()
+ui = InterfaceManager(db)
 analytics = AnalyticsEngine()
 
 # Flujo principal
@@ -29,12 +29,7 @@ def load_data(_db):
 raw_data = load_data(db)
 
 if ui.menu_option == "Registro":
-    new_data = ui.input_form()
-    if new_data:
-        db.insert_gasto(new_data)
-        st.cache_data.clear()  # Forzar recarga de datos
-        st.rerun()
-
+    ui.registro_form()
 
 elif ui.menu_option == "Consulta":
     if raw_data:
