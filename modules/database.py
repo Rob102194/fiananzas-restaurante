@@ -1,4 +1,5 @@
 import streamlit as st
+import datetime
 from supabase import create_client, Client
 from typing import Dict, List, Optional
 
@@ -40,9 +41,17 @@ class DatabaseManager:
         return self.client.table('gastos').insert(data).execute().data[0]
     
     def get_all_gastos(self) -> List[Dict]:
-        return self.client.table('gastos').select("*").execute().data
-    
+        raw_data = self.client.table('gastos').select("*").execute().data
+        # Convertir datetime a string ISO
+        for item in raw_data:
+            if isinstance(item['fecha'], str):
+                item['fecha'] = datetime.fromisoformat(item['fecha']).date()
+        return raw_data
+
     def update_gasto(self, record_id: int, updates: Dict) -> Dict:
+        # Convertir date a string ISO
+        if 'fecha' in updates:
+            updates['fecha'] = updates['fecha'].isoformat()
         return self.client.table('gastos').update(updates).eq('id', record_id).execute().data[0]
     
     def delete_gasto(self, record_id: int) -> None:

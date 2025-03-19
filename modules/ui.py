@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 from datetime import date
 from typing import Dict, List
 
@@ -38,17 +39,34 @@ class InterfaceManager:
 
     @staticmethod
     def edit_delete_table(data: List[Dict]) -> tuple:
+    # Convertir strings a datetime
+        for row in data:
+            if isinstance(row['fecha'], str):
+                row['fecha'] = pd.to_datetime(row['fecha']).date()
+        
+        # Configurar columnas editables
+        column_config = {
+            "fecha": st.column_config.DateColumn(
+                format="YYYY-MM-DD",
+                required=True
+            ),
+            "monto": st.column_config.NumberColumn(
+                format="$%.2f",
+                required=True
+            ),
+            "cantidad": st.column_config.NumberColumn(
+                format="%.3f",
+                required=True
+            )
+        }
+    
         edited_data = st.data_editor(
             data,
-            column_config={
-                "fecha": st.column_config.DateColumn(),
-                "monto": st.column_config.NumberColumn(format="$%.2f"),
-                "cantidad": st.column_config.NumberColumn(format="%.3f")
-            },
+            column_config=column_config,
             key="editor",
             num_rows="dynamic"
-        )
-        
+    )
+    
         col1, col2 = st.columns(2)
         with col1:
             if st.button("🗑️ Eliminar seleccionados"):
