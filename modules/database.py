@@ -20,15 +20,15 @@ class DatabaseManager:
         
         tables =  {
             "compras": """
-                CREATE TABLE IF NOT EXISTS gastos (
+                CREATE TABLE IF NOT EXISTS compras (
                     id SERIAL PRIMARY KEY,
                     fecha DATE NOT NULL,
-                    categoria VARCHAR(50) NOT NULL,
-                    tipo VARCHAR(10) NOT NULL CHECK (tipo IN ('compra', 'gasto')),
-                    proveedor VARCHAR(100),
+                    categoria VARCHAR(50) NOT NULL DEFAULT 'Mercancía',
+                    producto VARCHAR(100),
                     cantidad NUMERIC(10,3) NOT NULL DEFAULT 1,
                     unidad_medida VARCHAR(20) NOT NULL DEFAULT 'unidad',
                     monto NUMERIC(10,2) NOT NULL,
+                    proveedor VARCHAR(100),
                     descripcion TEXT,
                     created_at TIMESTAMP DEFAULT NOW()
                 )
@@ -38,10 +38,11 @@ class DatabaseManager:
                 CREATE TABLE IF NOT EXISTS gastos (
                     id SERIAL PRIMARY KEY,
                     fecha DATE NOT NULL,
-                    proveedor VARCHAR(100),
+                    producto VARCHAR(100),
                     categoria VARCHAR(50) NOT NULL,
                     monto NUMERIC(10,2) NOT NULL,
                     descripcion TEXT,
+                    proveedor VARCHAR(100),
                     created_at TIMESTAMP DEFAULT NOW()
                 )
             """,
@@ -65,16 +66,16 @@ class DatabaseManager:
                     self.client.rpc('execute_sql', params={'query': script}).execute()
                 except Exception as e:
                     print(f"Error creando tabla {table}: {str(e)}")
+    
+    """ INSTERTAR DATOS"""
 
-
-        
     def insert_registro(self, data: Dict):
         """Inserta en la tabla correspondiente según categoría"""
         if data["categoria"] == "Mercancía":
             required = ["fecha", "producto", "cantidad", "unidad_medida", "monto"]
             table = "compras"
         else:
-            required = ["fecha", "categoria", "monto"]
+            required = ["fecha", "categoria", "producto", "monto"]
             table = "gastos"
         
         if not all(key in data for key in required):
@@ -85,6 +86,52 @@ class DatabaseManager:
     def insert_venta(self, data: Dict) -> Dict:
         return self.client.table('ventas').insert(data).execute().data[0]
     
+    """OBTENER DATOS"""
+    
+    def get_categorias(self):
+        """Obtiene categorías únicas de ambas tablas"""
+        # Obtener categorías de compras
+        compras = self.client.table('compras').select('categoria').execute().data
+        categorias_compras = {item['categoria'] for item in compras}
+        
+        # Obtener categorías de gastos
+        gastos = self.client.table('gastos').select('categoria').execute().data
+        categorias_gastos = {item['categoria'] for item in gastos}
+        
+        # Combinar y ordenar
+        return sorted(categorias_compras.union(categorias_gastos))
+
+    def execute_query(self, query: str):
+        """Ejecuta consultas SQL personalizadas"""
+        try:
+            result = self.client.rpc('execute_sql', params={'query': query}).execute()
+            return result.data
+        except Exception as e:
+            raise ValueError(f"Error en consulta: {str(e)}")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    """
     def get_all_gastos(self) -> List[Dict]:
         raw_data = self.client.table('gastos').select("*").execute().data
         for item in raw_data:
@@ -122,3 +169,4 @@ class DatabaseManager:
             key="editor",
             num_rows="dynamic"
         )
+        """

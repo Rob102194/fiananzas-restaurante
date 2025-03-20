@@ -12,6 +12,7 @@ st.set_page_config(
 )
 
 # Inicialización de módulos
+
 @st.cache_resource
 def init_db():
     return DatabaseManager()
@@ -21,45 +22,23 @@ ui = InterfaceManager(db)
 analytics = AnalyticsEngine()
 
 # Flujo principal
-@st.cache_data
-def load_data(_db):
-    return _db.get_all_gastos()
+#@st.cache_data
+#def load_data(_db):
+#    query = """
+#        SELECT * FROM compras
+#        UNION ALL
+#        SELECT *, NULL as cantidad, NULL as unidad_medida FROM gastos
+#   """
+#    return _db.execute_query(query)
 
 # Cargar datos
-raw_data = load_data(db)
+#raw_data = load_data(db)
 
 if ui.menu_option == "Registro":
     ui.registro_form()
 
 elif ui.menu_option == "Consulta":
-    if raw_data:
-        df = pd.DataFrame(raw_data)
-        deleted_ids, edited_data = ui.edit_delete_table(df.to_dict('records'))
-        
-        if deleted_ids:
-            for id in deleted_ids:
-                db.delete_gasto(id)
-            st.rerun()
-            
-        if edited_data is not None:
-            for row in edited_data:
-                db.update_gasto(row['id'], row)
-            st.rerun()
+    ui.consulta_gastos()
 
 elif ui.menu_option == "Análisis":
-    if raw_data:
-        df = pd.DataFrame(raw_data)
-        metrics = analytics.generate_metrics(df)
-        
-        st.subheader("Métricas Clave")
-        cols = st.columns(3)
-        cols[0].metric("Gasto Total", f"${metrics['gasto_total']:,.2f}")
-        cols[1].metric("Costo Promedio", f"${metrics['gasto_promedio']:,.2f}")
-        cols[2].metric("Categoría Principal", metrics['categoria_mayor'])
-        
-        fig1, fig2 = analytics.create_visualizations(df)
-        st.plotly_chart(fig1, use_container_width=True)
-        st.plotly_chart(fig2, use_container_width=True)
-
-    else:
-        st.warning("No hay datos para analizar")
+    st.warning("No hay datos para analizar")

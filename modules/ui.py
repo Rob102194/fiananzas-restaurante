@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime  
+from datetime import datetime, timedelta      
 from typing import Dict, List
 from streamlit_option_menu import option_menu
 
@@ -29,8 +29,9 @@ class InterfaceManager:
                 }
             )
 
+    """INTERFAZ DE REGISTRO"""
+    
     def registro_form(self):
-        """Interfaz de registro con sub-opciones"""
         opcion = st.radio(
             "Tipo de Registro",
             options=["Ventas", "Compras y Gastos", "Producción"],
@@ -84,104 +85,181 @@ class InterfaceManager:
                 st.error(f"Error: {str(e)}")
 
     def _compras_gastos_form(self):
-        
-        """Formulario dinámico con layout mejorado"""
-        with st.form("form_registro"):
-            # Dividir en 2 columnas iguales
-            col1, col2 = st.columns([1, 1], gap="large")
+        """Formulario con validación en tiempo real y campos dinámicos"""
+        with st.form("form_compras_gastos"):
+            categoria = st.selectbox(
+                "Categoría*",
+                options=["Mercancía", "Servicios", "Equipos", "Nómina", "Otros"],
+                index=0
+            )
+            
+            col1, col2 = st.columns([1, 1])
             
             with col1:
-                # --- Campos Principales ---
-                st.subheader("📝 Información Básica")
                 fecha = st.date_input("Fecha*", value=datetime.today())
-                proveedor = st.text_input("Proveedor", placeholder="Ej: Suministros S.A.")
-                categoria = st.selectbox(
-                    "Categoría*",
-                    options=["Mercancía", "Servicios", "Equipos", "Nómina", "Otros"],
-                    index=0,
-                    help="Seleccione 'Mercancía' para insumos de producción"
-                )
-                monto = st.number_input("Monto Total*", min_value=0.0, format="%.2f")
-            
+                producto = st.text_input("Producto*", placeholder="Ej: Suministros varios")
+                monto = st.number_input("Monto Total*", min_value=0.0, format="%.2f") 
+                proveedor = st.text_input("Proveedor", placeholder="Opcional")
+                
             with col2:
-                # --- Campos Condicionales ---
-                st.subheader("📦 Detalles Específicos")
                 if categoria == "Mercancía":
-                    producto = st.text_input("Producto*", placeholder="Ej: Filete de res")
                     cantidad = st.number_input("Cantidad*", 
                         min_value=0.001, 
                         step=0.1, 
-                        format="%.3f",
-                        help="Cantidad exacta recibida"
+                        format="%.3f"
                     )
-                    unidad = st.selectbox(
-                        "Unidad de Medida*",
-                        options=["kg", "litro", "unidad", "paquete"],
-                        index=0,
-                        disabled=False  # Solo habilitado para Mercancía
+                    unidad = st.selectbox("Unidad Medida*", 
+                        options=["kg", "litro", "unidad", "paquete"]
                     )
+                    
                 else:
-                    descripcion = st.text_area(
-                        "Descripción Detallada*",
-                        placeholder="Detalle el gasto (Ej: Mantenimiento de equipos...)",
+                    cantidad = None
+                    unidad = None
+
+                descripcion = st.text_area("Descripción", 
+                        placeholder="Detalles adicionales (opcional)", 
                         height=100
                     )
-            
-            # Botón de submit al final
-            submitted = st.form_submit_button("💾 Guardar Registro", use_container_width=True)
-        
-        # Lógica de procesamiento
-        if submitted:
-            data = {
-                "fecha": fecha.isoformat(),
-                "proveedor": proveedor.strip(),
-                "monto": monto,
-                "categoria": categoria
-            }
-            
-            try:
-                # Validación condicional
-                if categoria == "Mercancía":
-                    if not producto.strip():
-                        raise ValueError("Debe especificar el producto")
-                    data.update({
-                        "producto": producto.strip(),
-                        "cantidad": cantidad,
-                        "unidad_medida": unidad
-                    })
-                else:
-                    if not descripcion.strip():
-                        raise ValueError("Debe agregar una descripción del gasto")
-                    data["descripcion"] = descripcion.strip()
                 
-                self.db.insert_registro(data)
-                st.success("✅ Registro exitoso!")
+            submitted = st.form_submit_button("💾 Guardar Registro")
+        
+        if submitted:
+            try:
+                # Validación estricta
+                error_messages = []
+                
+                if not producto.strip():
+                    error_messages.append("- Producto es obligatorio para todas las categorías")
+                    
+                if monto <= 0:
+                    error_messages.append("- Monto debe ser mayor a 0")
+                    
+                if categoria == "Mercancía":
+                    if not cantidad or cantidad <= 0:
+                        error_messages.append("- Cantidad debe ser mayor a 0")
+                    if not unidad:
+                        error_messages.append("- Unidad de medida es obligatoria")
+
+                if error_messages:
+                    raise ValueError("\n".join(error_messages))
+                
+                # Preparar datos
+                base_data = {
+                    "fecha": fecha.isoformat(),
+                    "categoria": categoria,
+                    "proveedor": proveedor.strip() if proveedor else None,
+                    "monto": monto,
+                    "producto": producto.strip()
+                }
+                
+                if categoria == "Mercancía":
+                    full_data = {
+                        **base_data,
+                        "cantidad": cantidad,
+                        "unidad_medida": unidad,
+                        "descripcion": descripcion.strip() if descripcion else None
+                    }
+                    table = "compras"
+                else:
+                    full_data = base_data
+                    table = "gastos"
+                
+                # Insertar en tabla correcta
+                self.db.client.table(table).insert(full_data).execute()
+                st.success("✅ Registro guardado correctamente!")
                 st.rerun()
                 
             except Exception as e:
-                st.error(f"🚨 Error: {str(e)}")
+                st.error(f"**Errores detectados:**\n{str(e)}")
 
-    def show_records(self, table_name: str):
-        """Muestra registros con formato específico"""
-        df = pd.DataFrame(self.db.client.table(table_name).select("*").execute().data)
+        """INTERFAZ DE CONSULTA"""
+
+    def consulta_gastos(self):
+        st.subheader("🔍 Consulta de Gastos y Compras")
         
-        if not df.empty:
-            if table_name == "compras":
-                st.write("📦 **Registros de Mercancías**")
-                st.dataframe(
-                    df.style.format({
-                        "cantidad": "{:.3f}",
-                        "monto": "💰 ${:.2f}"
-                    }),
-                    column_config={
-                        "created_at": st.column_config.DatetimeColumn("Fecha Registro")
-                    }
+        with st.expander("⚙️ Filtros", expanded=True):
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                # Rango de fechas
+                fecha_inicio = st.date_input("Fecha inicial", value=datetime.today() - timedelta(days=30))
+                fecha_fin = st.date_input("Fecha final", value=datetime.today())
+                
+            with col2:
+                # Selector de categorías desde la base de datos
+                categorias = self.db.get_categorias()
+                categoria_seleccionada = st.selectbox(
+                    "Categoría",
+                    options=["Todas"] + categorias,
+                    index=0
                 )
-            else:
-                st.write("🧾 **Registros de Gastos**")
+                
+            with col3:
+                # Búsqueda de producto
+                producto_busqueda = st.text_input("Buscar por producto", placeholder="Ej: Carne de res")
+        
+        # Consultar datos
+        if st.button("🔍 Aplicar Filtros"):
+            try:
+                # Construir query dinámico
+                query = """
+                    SELECT 
+                        fecha,
+                        categoria,
+                        producto,
+                        monto,
+                        proveedor,
+                        CASE WHEN cantidad IS NOT NULL THEN cantidad || ' ' || unidad_medida END as detalle
+                    FROM compras
+                    WHERE fecha BETWEEN '{fecha_inicio}' AND '{fecha_fin}'
+                    UNION ALL
+                    SELECT 
+                        fecha,
+                        categoria,
+                        producto,
+                        monto,
+                        proveedor,
+                        NULL as detalle
+                    FROM gastos
+                    WHERE fecha BETWEEN '{fecha_inicio}' AND '{fecha_fin}'
+                """
+                
+                # Aplicar filtros
+                if categoria_seleccionada != "Todas":
+                    query += f" AND categoria = '{categoria_seleccionada}'"
+                    
+                if producto_busqueda.strip():
+                    query += f" AND producto ILIKE '%{producto_busqueda.strip()}%'"
+                
+                # Ejecutar consulta
+                datos = self.db.execute_query(query.format(
+                    fecha_inicio=fecha_inicio.isoformat(),
+                    fecha_fin=fecha_fin.isoformat()
+                ))
+                
+                if not datos:
+                    st.warning("❌ No se encontraron registros con los filtros aplicados")
+                    return
+                    
+                df = pd.DataFrame(datos)
+                
+                # Mostrar resultados
                 st.dataframe(
-                    df[["fecha", "categoria", "proveedor", "monto", "descripcion"]],
+                    df.style.format({'monto': '💰 ${:.2f}'}),
                     column_config={
-                        "monto": st.column_config.NumberColumn(format="$%.2f")
-                    }
+                        "fecha": st.column_config.DateColumn(format="DD/MM/YYYY"),
+                        "detalle": "Cantidad"
+                    },
+                    height=500
                 )
+                
+                # Exportar datos
+                st.download_button(
+                    label="📤 Exportar a CSV",
+                    data=df.to_csv(index=False).encode('utf-8'),
+                    file_name=f"consulta_gastos_{datetime.today().date()}.csv",
+                    mime="text/csv"
+                )
+                
+            except Exception as e:
+                st.error(f"Error en la consulta: {str(e)}")
