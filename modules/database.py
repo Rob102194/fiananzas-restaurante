@@ -1,7 +1,6 @@
 import streamlit as st
-from datetime import datetime as dt
 from supabase import create_client, Client
-from typing import Dict, List, Optional
+from typing import Dict
 
 class DatabaseManager:
     def __init__(self):
@@ -101,13 +100,51 @@ class DatabaseManager:
         # Combinar y ordenar
         return sorted(categorias_compras.union(categorias_gastos))
 
-    def execute_query(self, query: str):
-        """Ejecuta consultas SQL personalizadas"""
+    def execute_safe_query(self, table: str, filters: dict):
+        """Versión mejorada con logging de diagnóstico"""
         try:
-            result = self.client.rpc('execute_sql', params={'query': query}).execute()
+            st.write("🔍 Parámetros de búsqueda recibidos:", filters)  # Debug 1
+            
+            query = self.client.table(table).select("*")
+            
+            # Aplicar filtros con verificación de valores
+            if 'categoria' in filters:
+                categoria = filters['categoria'].lower().strip()  # Normalización
+                query = query.ilike("categoria", f"%{categoria}%")
+                st.write(f"✅ Filtro categoría aplicado: {categoria}")  # Debug 2
+                
+            if all(k in filters for k in ['fecha_inicio', 'fecha_fin']):
+                query = (
+                    query
+                    .gte("fecha", filters['fecha_inicio'])
+                    .lte("fecha", filters['fecha_fin'])
+                )
+                st.write(f"📅 Rango fechas: {filters['fecha_inicio']} a {filters['fecha_fin']}")  # Debug 3
+                
+            if 'search' in filters and filters['search']:
+                search_term = f"%{filters['search'].lower().strip()}%"
+                if table == "gastos":
+                    query = query.or_(f"producto.ilike.{search_term},descripcion.ilike.{search_term}")
+                else:
+                    query = query.ilike("producto", search_term)
+                st.write(f"🔎 Término búsqueda: {search_term}")  # Debug 4
+            
+            st.write("⚡ Consulta final:", query)  # Debug 5
+            result = query.execute()
+            
+            st.write("📦 Datos crudos recibidos:", result.data)  # Debug 6
             return result.data
+            
         except Exception as e:
-            raise ValueError(f"Error en consulta: {str(e)}")
+            st.error(f"🧨 Error en consulta: {str(e)}")
+            raise
+
+    # Métodos adicionales para acceso individual
+    def get_compras(self):
+        return self.client.table('compras').select('*').execute().data
+
+    def get_gastos(self):
+        return self.client.table('gastos').select('*').execute().data
 
 
 
@@ -131,42 +168,4 @@ class DatabaseManager:
 
 
 
-    """
-    def get_all_gastos(self) -> List[Dict]:
-        raw_data = self.client.table('gastos').select("*").execute().data
-        for item in raw_data:
-            if isinstance(item['fecha'], str):
-                # Usar fromisoformat desde el módulo datetime
-                item['fecha'] = dt.fromisoformat(item['fecha']).date()
-        return raw_data
-
-    def update_gasto(self, record_id: int, updates: Dict) -> Dict:
-        # Convertir date a string ISO
-        if 'fecha' in updates:
-            updates['fecha'] = updates['fecha'].isoformat()
-        return self.client.table('gastos').update(updates).eq('id', record_id).execute().data[0]
     
-    def delete_gasto(self, record_id: int) -> None:
-        self.client.table('gastos').delete().eq('id', record_id).execute()
-
-    def edit_delete_table(self, data: List[Dict]) -> tuple:
-        # Nueva configuración de columnas
-        column_config = {
-            "tipo": st.column_config.SelectboxColumn(
-                "Tipo",
-                options=["compra", "gasto"],
-                required=True
-            ),
-            "fecha": st.column_config.DateColumn(format="YYYY-MM-DD"),
-            "monto": st.column_config.NumberColumn(format="$%.2f"),
-            "cantidad": st.column_config.NumberColumn(format="%.3f")
-        }
-        
-        edited_data = st.data_editor(
-            data,
-            column_config=column_config,
-            disabled=["id", "created_at"],
-            key="editor",
-            num_rows="dynamic"
-        )
-        """

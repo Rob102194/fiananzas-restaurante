@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta      
-from typing import Dict, List
 from streamlit_option_menu import option_menu
 
 class InterfaceManager:
@@ -175,91 +174,84 @@ class InterfaceManager:
         """INTERFAZ DE CONSULTA"""
 
     def consulta_gastos(self):
-        st.subheader("🔍 Consulta de Gastos y Compras")
+        """Consulta con categoría obligatoria y búsqueda segmentada"""
+        st.subheader("🔍 Consulta de Registros")
         
-        with st.expander("⚙️ Filtros", expanded=True):
-            col1, col2, col3 = st.columns(3)
+        with st.expander("⚙️ Filtros Obligatorios", expanded=True):
+            col1, col2 = st.columns(2)
             
             with col1:
-                # Rango de fechas
-                fecha_inicio = st.date_input("Fecha inicial", value=datetime.today() - timedelta(days=30))
-                fecha_fin = st.date_input("Fecha final", value=datetime.today())
-                
-            with col2:
-                # Selector de categorías desde la base de datos
-                categorias = self.db.get_categorias()
                 categoria_seleccionada = st.selectbox(
-                    "Categoría",
-                    options=["Todas"] + categorias,
+                    "Categoría*",
+                    options=["Mercancía", "Servicios", "Equipos", "Nómina", "Otros"],
                     index=0
                 )
                 
-            with col3:
-                # Búsqueda de producto
-                producto_busqueda = st.text_input("Buscar por producto", placeholder="Ej: Carne de res")
+            with col2:
+                fecha_inicio = st.date_input("Fecha inicial*", value=datetime.today() - timedelta(days=30))
+                fecha_fin = st.date_input("Fecha final*", value=datetime.today())
         
-        # Consultar datos
-        if st.button("🔍 Aplicar Filtros"):
+        producto_busqueda = st.text_input("Buscar por producto", placeholder="Opcional...")
+        
+        if st.button("🔍 Ejecutar Búsqueda", type="primary"):
             try:
-                # Construir query dinámico
-                query = """
-                    SELECT 
-                        fecha,
-                        categoria,
-                        producto,
-                        monto,
-                        proveedor,
-                        CASE WHEN cantidad IS NOT NULL THEN cantidad || ' ' || unidad_medida END as detalle
-                    FROM compras
-                    WHERE fecha BETWEEN '{fecha_inicio}' AND '{fecha_fin}'
-                    UNION ALL
-                    SELECT 
-                        fecha,
-                        categoria,
-                        producto,
-                        monto,
-                        proveedor,
-                        NULL as detalle
-                    FROM gastos
-                    WHERE fecha BETWEEN '{fecha_inicio}' AND '{fecha_fin}'
-                """
-                
-                # Aplicar filtros
-                if categoria_seleccionada != "Todas":
-                    query += f" AND categoria = '{categoria_seleccionada}'"
-                    
-                if producto_busqueda.strip():
-                    query += f" AND producto ILIKE '%{producto_busqueda.strip()}%'"
-                
-                # Ejecutar consulta
-                datos = self.db.execute_query(query.format(
-                    fecha_inicio=fecha_inicio.isoformat(),
-                    fecha_fin=fecha_fin.isoformat()
-                ))
-                
-                if not datos:
-                    st.warning("❌ No se encontraron registros con los filtros aplicados")
+                # Verificación de consistencia de fechas
+                if fecha_inicio > fecha_fin:
+                    st.error("❌ La fecha inicial no puede ser mayor a la final")
                     return
                     
+                # Determinar tabla
+                tabla = "compras" if categoria_seleccionada == "Mercancía" else "gastos"
+                
+                # Construir parámetros con valores normalizados
+                filters = {
+                    "categoria": categoria_seleccionada.strip(),
+                    "fecha_inicio": fecha_inicio.isoformat(),
+                    "fecha_fin": fecha_fin.isoformat(),
+                    "search": producto_busqueda.strip() if producto_busqueda else None
+                }
+                
+                st.write("⚙️ Filtros enviados a la consulta:", filters)  # Debug 7
+                
+                # Ejecutar consulta
+                datos = self.db.execute_safe_query(tabla, filters)
+                
+                # Verificación de datos vacíos
+                if not datos:
+                    st.warning(f"⚠️ No hay registros de {categoria_seleccionada} entre {fecha_inicio} y {fecha_fin}")
+                    return
+                    
+                # Procesamiento de datos con verificación de columnas
                 df = pd.DataFrame(datos)
+                columnas_requeridas = {
+                    "compras": ["fecha", "producto", "monto", "categoria", "cantidad", "unidad_medida"],
+                    "gastos": ["fecha", "producto", "monto", "categoria", "descripcion"]
+                }
+                
+                # Verificar existencia de columnas
+                columnas_faltantes = [col for col in columnas_requeridas[tabla] if col not in df.columns]
+                if columnas_faltantes:
+                    st.error(f"🚨 Columnas faltantes en la respuesta: {', '.join(columnas_faltantes)}")
+                    return
                 
                 # Mostrar resultados
                 st.dataframe(
-                    df.style.format({'monto': '💰 ${:.2f}'}),
+                    df[columnas_requeridas[tabla]],
                     column_config={
+                        "monto": st.column_config.NumberColumn(format="$%.2f"),
                         "fecha": st.column_config.DateColumn(format="DD/MM/YYYY"),
-                        "detalle": "Cantidad"
+                        "cantidad": st.column_config.NumberColumn(format="%.3f") if tabla == "compras" else None
                     },
-                    height=500
+                    height=400,
+                    use_container_width=True
                 )
                 
-                # Exportar datos
-                st.download_button(
-                    label="📤 Exportar a CSV",
-                    data=df.to_csv(index=False).encode('utf-8'),
-                    file_name=f"consulta_gastos_{datetime.today().date()}.csv",
-                    mime="text/csv"
-                )
+                # Cálculo de total con verificación
+                try:
+                    total = df['monto'].sum()
+                    st.metric(f"📊 Total {categoria_seleccionada}", f"${total:,.2f}")
+                except KeyError:
+                    st.error("🔍 La columna 'monto' no existe en los datos recibidos")
                 
             except Exception as e:
-                st.error(f"Error en la consulta: {str(e)}")
+                st.error(f"🚑 Error crítico: {str(e)}")
