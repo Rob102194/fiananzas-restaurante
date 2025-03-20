@@ -84,7 +84,7 @@ class InterfaceManager:
                 st.error(f"Error: {str(e)}")
 
     def _compras_gastos_form(self):
-        """Formulario con validación en tiempo real y campos dinámicos"""
+        """Formulario con campos siempre visibles pero condicionalmente requeridos"""
         with st.form("form_compras_gastos"):
             categoria = st.selectbox(
                 "Categoría*",
@@ -101,70 +101,75 @@ class InterfaceManager:
                 proveedor = st.text_input("Proveedor", placeholder="Opcional")
                 
             with col2:
-                if categoria == "Mercancía":
-                    cantidad = st.number_input("Cantidad*", 
-                        min_value=0.001, 
-                        step=0.1, 
-                        format="%.3f"
-                    )
-                    unidad = st.selectbox("Unidad Medida*", 
-                        options=["kg", "litro", "unidad", "paquete"]
-                    )
-                    
-                else:
-                    cantidad = None
-                    unidad = None
-
+                # Campos siempre visibles
+                cantidad = st.number_input("Cantidad", 
+                    min_value=0.0, 
+                    step=0.1, 
+                    format="%.3f",
+                    help="Requerido solo para Mercancía"
+                )
+                unidad = st.selectbox("Unidad Medida", 
+                    options=["kg", "litro", "unidad", "paquete", "N/A"],
+                    index=4 if categoria != "Mercancía" else 2,
+                    help="Seleccione 'N/A' si no aplica"
+                )
+                
                 descripcion = st.text_area("Descripción", 
-                        placeholder="Detalles adicionales (opcional)", 
-                        height=100
-                    )
+                    placeholder="Detalles adicionales (opcional)", 
+                    height=100
+                )
                 
             submitted = st.form_submit_button("💾 Guardar Registro")
         
         if submitted:
             try:
-                # Validación estricta
+                # Validación condicional
                 error_messages = []
                 
                 if not producto.strip():
-                    error_messages.append("- Producto es obligatorio para todas las categorías")
+                    error_messages.append("- Producto es obligatorio")
                     
                 if monto <= 0:
                     error_messages.append("- Monto debe ser mayor a 0")
                     
+                # Solo validar cantidad y unidad para Mercancía
                 if categoria == "Mercancía":
-                    if not cantidad or cantidad <= 0:
-                        error_messages.append("- Cantidad debe ser mayor a 0")
-                    if not unidad:
-                        error_messages.append("- Unidad de medida es obligatoria")
+                    if cantidad <= 0:
+                        error_messages.append("- Cantidad debe ser > 0 para Mercancía")
+                    if unidad == "N/A":
+                        error_messages.append("- Seleccione una unidad válida para Mercancía")
 
                 if error_messages:
                     raise ValueError("\n".join(error_messages))
                 
-                # Preparar datos
+                # Preparar datos (solo incluir campos relevantes)
                 base_data = {
                     "fecha": fecha.isoformat(),
                     "categoria": categoria,
                     "proveedor": proveedor.strip() if proveedor else None,
                     "monto": monto,
-                    "producto": producto.strip()
+                    "producto": producto.strip(),
+                    "descripcion": descripcion.strip() if descripcion else None
                 }
                 
+                # Agregar campos específicos solo para Mercancía
                 if categoria == "Mercancía":
-                    full_data = {
-                        **base_data,
+                    base_data.update({
                         "cantidad": cantidad,
-                        "unidad_medida": unidad,
-                        "descripcion": descripcion.strip() if descripcion else None
-                    }
-                    table = "compras"
-                else:
-                    full_data = base_data
-                    table = "gastos"
+                        "unidad_medida": unidad if unidad != "N/A" else None
+                    })
                 
-                # Insertar en tabla correcta
-                self.db.client.table(table).insert(full_data).execute()
+                # Determinar tabla destino
+                table = "compras" if categoria == "Mercancía" else "gastos"
+                
+                # Eliminar campos nulos para gastos
+                if table == "gastos":
+                    base_data = {k: v for k, v in base_data.items() if v is not None}
+                    base_data.pop('cantidad', None)  # Eliminar por seguridad
+                    base_data.pop('unidad_medida', None)
+
+                # Insertar en la tabla correspondiente
+                self.db.client.table(table).insert(base_data).execute()
                 st.success("✅ Registro guardado correctamente!")
                 st.rerun()
                 
