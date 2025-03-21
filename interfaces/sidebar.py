@@ -4,7 +4,8 @@ from streamlit_option_menu import option_menu
 class SidebarManager:
     def __init__(self):
         self.menu_option = None
-        self._setup_sidebar()
+        if st.session_state.authenticated:
+            self._setup_sidebar()
     
     def _setup_sidebar(self):
         """Configuración de sidebar"""
@@ -25,6 +26,10 @@ class SidebarManager:
             )
             
             st.write(f"Usuario: {st.session_state.user}")
-            if st.button("🚪 Cerrar Sesión"):
+            if st.button(
+                "🚪 Cerrar Sesión",
+                key="logout_btn", 
+                help="Cierra la sesión actual"
+            ):
                 from auth.auth import logout
                 logout()
