@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta      
 from streamlit_option_menu import option_menu
+from auth.auth import logout
 
 class InterfaceManager:
     def __init__(self, db):
@@ -27,6 +28,12 @@ class InterfaceManager:
                     "nav-link": {"font-size": "16px", "margin": "5px 0"}
                 }
             )
+
+            # Agregar botón de logout 
+            with st.sidebar:
+                st.write(f"Usuario: {st.session_state.user}")
+                if st.button("🚪 Cerrar Sesión"):
+                    logout()
 
     """INTERFAZ DE REGISTRO"""
     

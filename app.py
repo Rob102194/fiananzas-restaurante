@@ -1,8 +1,4 @@
 import streamlit as st
-from modules.database import DatabaseManager
-from modules.ui import InterfaceManager
-from modules.analytics import AnalyticsEngine
-import pandas as pd
 
 # Configuración inicial
 st.set_page_config(
@@ -11,8 +7,16 @@ st.set_page_config(
     layout="wide"
 )
 
-# Inicialización de módulos
+from modules.database import DatabaseManager
+from modules.ui import InterfaceManager
+from modules.analytics import AnalyticsEngine
+from auth.auth import login_form
 
+# Verificar autenticación antes de cargar la app
+if not login_form():
+    st.stop()  # Detiene la ejecución si no está autenticado
+
+# Inicialización de módulos
 @st.cache_resource
 def init_db():
     return DatabaseManager()
