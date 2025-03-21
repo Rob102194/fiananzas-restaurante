@@ -2,28 +2,52 @@ import streamlit as st
 
 # Configuración inicial
 st.set_page_config(
-    page_title="Gestión de Restaurante", 
-    page_icon="🍽️", 
+    page_title="Gestión de Restaurante",
+    page_icon="🍽️",
     layout="wide"
 )
 
-from modules.database import DatabaseManager
-from modules.ui import InterfaceManager
-from modules.analytics import AnalyticsEngine
+# Inicializar estado de sesión
+if 'user' not in st.session_state:
+    st.session_state.user = None
+    st.session_state.authenticated = False
+
+# Verificar autenticación antes de cargar cualquier componente
 from auth.auth import login_form
+if not st.session_state.authenticated:
+    if not login_form():
+        st.stop()  # Detiene la ejecución si no está autenticado
 
-# Verificar autenticación antes de cargar la app
-if not login_form():
-    st.stop()  # Detiene la ejecución si no está autenticado
+from interfaces.sidebar import SidebarManager
+from modules.logic.ventas import VentasLogic
+from modules.logic.compras_gastos import ComprasGastosLogic
+from modules.database import DatabaseManager
+from modules.logic.consultas import ConsultasLogic
+from interfaces.consultas.gastos_ui import ConsultasUI
 
-# Inicialización de módulos
-@st.cache_resource
-def init_db():
-    return DatabaseManager()
+# Inicialización de componentes
+db = DatabaseManager()
+sidebar = SidebarManager()
+ventas_logic = VentasLogic(db)
+compras_gastos_logic = ComprasGastosLogic(db)
 
-db = init_db()
-ui = InterfaceManager(db)
-analytics = AnalyticsEngine()
+consultas_logic = ConsultasLogic(db)
+consultas_ui = ConsultasUI(consultas_logic)
+
+# Routing de vistas
+if sidebar.menu_option == "Registro":
+    from interfaces.registro.ventas_ui import VentasUI
+    from interfaces.registro.compras_gastos_ui import ComprasGastosUI
+    
+    VentasUI(ventas_logic).show_form()
+    ComprasGastosUI(compras_gastos_logic).show_form()
+
+elif sidebar.menu_option == "Consulta":
+    consultas_ui.mostrar_consulta_completa()
+
+
+
+
 
 # Codigo de prueba
 try:
@@ -33,48 +57,3 @@ try:
 except Exception as e:
     st.sidebar.error(f"❌ Error de conexión: {str(e)}")
     st.stop()
-
-# Flujo principal
-@st.cache_data
-def load_data(_db):
-    """Obtiene todos los registros combinados de compras y gastos"""
-    query = """
-        SELECT 
-            'compra' as tipo,
-            fecha,
-            categoria,
-            producto,
-            monto,
-            proveedor,
-            cantidad,
-            unidad_medida,
-            NULL as descripcion
-        FROM compras
-        
-        UNION ALL
-        
-        SELECT 
-            'gasto' as tipo,
-            fecha,
-            categoria,
-            producto,
-            monto,
-            proveedor,
-            NULL as cantidad,
-            NULL as unidad_medida,
-            descripcion
-        FROM gastos
-    """
-    return _db.execute_query(query)
-
-# Cargar datos
-#raw_data = load_data(db)
-
-if ui.menu_option == "Registro":
-    ui.registro_form()
-
-elif ui.menu_option == "Consulta":
-    ui.consulta_gastos()
-
-elif ui.menu_option == "Análisis":
-    st.warning("No hay datos para analizar")
