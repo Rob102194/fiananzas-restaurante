@@ -47,15 +47,16 @@ class DatabaseManager:
             """,
 
             "ventas": """
-            CREATE TABLE IF NOT EXISTS ventas (
-                id SERIAL PRIMARY KEY,
-                fecha DATE NOT NULL,
-                producto VARCHAR(100) NOT NULL,
-                cantidad INT NOT NULL,
-                precio_unitario NUMERIC(10,2) NOT NULL,
-                total NUMERIC(10,2) GENERATED ALWAYS AS (cantidad * precio_unitario) STORED,
-                metodo_pago VARCHAR(50),
-                created_at TIMESTAMP DEFAULT NOW()
+                CREATE TABLE IF NOT EXISTS ventas (
+                    id SERIAL PRIMARY KEY,
+                    fecha DATE NOT NULL,
+                    grupo VARCHAR(50) NOT NULL,
+                    nombre VARCHAR(100) NOT NULL,
+                    cantidad INTEGER NOT NULL,
+                    venta NUMERIC(10,2) NOT NULL,
+                    entidad VARCHAR(20) NOT NULL CHECK (entidad IN ('restaurante', 'domicilio')),
+                    cliente VARCHAR(20) NOT NULL CHECK (cliente IN ('clientes', 'cuenta_casa')),
+                    created_at TIMESTAMP DEFAULT NOW()
             )
         """
         }
