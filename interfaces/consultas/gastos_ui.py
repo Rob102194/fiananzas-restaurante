@@ -4,6 +4,9 @@ from datetime import datetime, timedelta
 import plotly.express as px
 
 class ConsultasUI:
+    def __init__(self, logic):  # <- ¡Este método faltaba!
+        self.logic = logic
+
     def mostrar_filtros(self):
         """Muestra los controles de filtrado obligatorios"""
         with st.expander("⚙️ Filtros Obligatorios", expanded=True):
@@ -46,7 +49,9 @@ class ConsultasUI:
         if df.empty:
             st.warning("No se encontraron registros con los filtros seleccionados")
             return
-            
+        # Convertir fecha a datetime
+        df['fecha'] = pd.to_datetime(df['fecha']).dt.date
+
         # Mostrar métricas rápidas
         total = df['monto'].sum()
         max_dia = df.groupby('fecha')['monto'].sum().idxmax()
